@@ -2,6 +2,7 @@ import { getKindeServerSession } from "@kinde-oss/kinde-auth-nextjs/server"
 import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server";
 import { generateProjectName } from "@/app/action/action";
+import { inngest } from "../../../inngest/client";
 
 export async function GET(request: Request) {
     try {
@@ -24,7 +25,7 @@ export async function GET(request: Request) {
             success: true,
             data: projects,
         });
-    } catch(error) {
+    } catch (error) {
         console.error("Error fetching projects:", error);
         return NextResponse.json({
             error: "Failed to fetch projects",
@@ -34,13 +35,13 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
     try {
-        const {prompt} = await request.json();
+        const { prompt } = await request.json();
         const session = await getKindeServerSession();
         const user = await session.getUser();
 
         if (!user) throw new Error("Unauthorized");
         if (!prompt) throw new Error("Prompt is required");
-            
+
         const userId = user.id
 
         const projectNaame = await generateProjectName(prompt);
@@ -50,10 +51,22 @@ export async function POST(request: Request) {
                 userId,
                 name: projectNaame,
             }
-        }); 
+        });
 
         //Trigger the Inngest workflow to generate the UI based on the prompt
-        
+        try {
+            await inngest.send({
+                name: "ui/generate.screens",
+                data: {
+                    userId,
+                    projectId: project.id,
+                    prompt,
+                },
+            });
+        } catch (error) {
+            console.log(error);
+        }
+
 
         return NextResponse.json({
             success: true,

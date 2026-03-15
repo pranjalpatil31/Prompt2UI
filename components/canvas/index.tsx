@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useCanvas, type LoadingStatusType } from '../../context/canvas-context';
 import { cn } from '../../lib/utils';
 import { Spinner } from '../ui/spinner';
@@ -7,8 +7,9 @@ import { TOOL_MODE_ENUM, type ToolModeType } from '../../constant/canvas';
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch"
 import CanvasControls from './canvas-controls';
 import DeviceFrame from './device-frame';
-import DeviceFrameSkeleton from './device-frame-skeleton';
 import HtmlDialog from './html-dialog';
+import { toast } from 'sonner';
+import axios from "axios"
 
 const DEMO_HTML = `
 <div class="flex flex-col w-full min-h-screen bg-[var(--background)] text-[var(--foreground)] font-sans pt-12 pb-24 px-6 overflow-y-auto relative">
@@ -238,10 +239,49 @@ const Canvas = ({
   const [zoomPercent, setZoomPercent] = useState<number>(53);
   const [currentScale, setCurrentScale] = useState<number>(0.53);
   const [openHtmlDialog, setOpenHtmlDialog] = useState(false);
-  const currentStatus = isPending ? "fetching" : loadingStatus !== "idle" && loadingStatus !== "completed" ? loadingStatus : null;
+  const [isScreenshotting, setIsScreenshotting] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const canvasRootRef = useRef<HTMLDivElement>(null);
+
+  // const currentStatus = isPending
+  //   ? "fetching" :
+  //   loadingStatus !== "idle"
+  //     && loadingStatus !== "completed" 
+  //     ? loadingStatus : null;
+
+    const saveThumbnailToProject = useCallback(async (projectId: string | null) => {
+    try {
+      if (!projectId) return null;
+      const result = getCanvasHtmlContent();
+      if (!result?.html) return null;
+      setSelectedFrameId(null);
+      setIsSaving(true);
+      const response = await axios.post("/api/screenshot", {
+        html: result.html,
+        width: result.element.scrollWidth,
+        height: 700,
+        projectId,
+      },
+    );
+    if(response.data) {
+      console.log("Thumbnail Saved", response.data)
+    }
+    } catch (error) {
+      console.log(error);
+      toast.error("Failed to capture Canvas");
+    }
+  }, [setSelectedFrameId]);
+
+  useEffect(() => {
+    if(!projectId) return;
+    if(loadingStatus !== "completed") return;
+    saveThumbnailToProject(projectId);
+  }, [loadingStatus, projectId, saveThumbnailToProject]);
+
   const onOpenHtmlDialog = () => {
     setOpenHtmlDialog(true);
   };
+
 
   //   return (
   //     <>
@@ -260,14 +300,83 @@ const Canvas = ({
   //       </div>
   //     </>
   //   )
-  // }
+  // 
+
+  const handleCanvasScreensshot = useCallback(async () => {
+    try {
+      const result = getCanvasHtmlContent();
+      if (!result?.html) {
+        toast.error("Failed to get Canvas Content");
+        return null;
+      }
+      setSelectedFrameId(null);
+      setIsScreenshotting(true);
+      const response = await axios.post("/api/screenshot", {
+        html: result.html,
+        width: result.element.scrollWidth,
+        height: 700,
+      }, {
+        responseType: "blob",
+        validateStatus: (s) => (s >= 200 && s < 300) || s === 304,
+      });
+      const title = projectName || "Canvas "
+      const url = window.URL.createObjectURL(response.data);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${title.replace(/\s+/g, "-").toLowerCase()}-${Date.now()}.png`;
+      link.click();
+      window.URL.revokeObjectURL(url);
+      toast.success("IMAGE Downlaoded");
+    } catch (error) {
+      console.log(error);
+      toast.error("Failed to capture Canvas");
+    } finally {
+      setIsScreenshotting(false);
+    }
+  }, [projectName, setSelectedFrameId]);
+
+  function getCanvasHtmlContent() {
+    const el = canvasRootRef.current;
+    if (!el) {
+      toast.error("Canvas Element Not Found")
+      return null;
+    }
+    let styles = "";
+    for (const sheet of document.styleSheets) {
+      try {
+        for (const rule of sheet.cssRules) styles += rule.cssText;
+      } catch { }
+    }
+    return {
+      element: el,
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <style>body{margin:0}*{box-sizing:border-box}${styles}</style>
+        </head>
+        <body>${el?.outerHTML}</body>
+        </html>
+      `
+    }
+  }
+
+  const currentStatus = isSaving
+    ? "finalizing" : isPending
+    ? "fetching" : loadingStatus !== "idle" && loadingStatus !== "completed"
+    ? loadingStatus : null;
 
   return (
     <>
       <div className="relative w-full h-full overflow-hidden bg-background">
 
         {/* Floating Toolbar */}
-        <CanvasFloatingToolbar />
+        <CanvasFloatingToolbar
+          projectId={projectId}
+          isScreenshotting={isScreenshotting}
+          onScreenshot={handleCanvasScreensshot}
+        />
 
         {/* Loader */}
         {currentStatus && <CanvasLoader status={currentStatus} />}
@@ -296,6 +405,7 @@ const Canvas = ({
           {({ zoomIn, zoomOut }) => (
             <>
               <div
+                ref={canvasRootRef}
                 className={cn(
                   "absolute inset-0 w-full h-full p-6",
                   "bg-gradient-to-r from-muted/30 to-background",
@@ -332,22 +442,23 @@ const Canvas = ({
                       const baseX = 100 + index * 480;
                       const y = 100;
 
-                      if (frame.isLoading) {
-                        return (
-                          <DeviceFrameSkeleton
-                            key={index}
-                            style={{
-                              transform: `translate(${baseX}px 100px)`
-                            }}
-                          />
-                        )
-                      }
+                      // if (frame.isLoading) {
+                      //   return (
+                      //     <DeviceFrameSkeleton
+                      //       key={index}
+                      //       style={{
+                      //         transform: `translate(${baseX}px 100px)`
+                      //       }}
+                      //     />
+                      //   )
+                      // }
                       return (
                         <DeviceFrame
                           key={frame.id}
                           frameId={frame.id}
                           title={frame.title}
                           html={frame.htmlContent}
+                          isLoading={frame.isLoading}
                           scale={currentScale}
                           initialPosition={{
                             x: baseX,
@@ -360,7 +471,7 @@ const Canvas = ({
                       );
                     })}
                   </div>
-                  <DeviceFrame
+                  {/* <DeviceFrame
                     frameId="demo"
                     title="Demo screen"
                     html={DEMO_HTML}
@@ -372,7 +483,7 @@ const Canvas = ({
                     toolMode={toolMode}
                     theme_style={theme?.style}
                     onOpenHtmlDialog={onOpenHtmlDialog}
-                  />
+                  /> */}
                   {/* <div className="w-24 h-24 rounded-xl bg-blue-500/90 shadow-lg flex items-center justify-center text-white font-medium">
                     Box
                   </div> */}
@@ -389,8 +500,8 @@ const Canvas = ({
           )}
         </TransformWrapper>
       </div>
-      
-      <HtmlDialog 
+
+      <HtmlDialog
         html={selectedFrame?.htmlContent || DEMO_HTML}
         theme_style={theme?.style}
         open={openHtmlDialog}
@@ -415,7 +526,7 @@ const Canvas = ({
 //   </div>
 // }
 
-function CanvasLoader({ status }: { status?: LoadingStatusType | "fetching" }) {
+function CanvasLoader({ status }: { status?: LoadingStatusType | "fetching" | "finalizing"; }) {
   return (
     <div
       className={cn(
@@ -439,6 +550,9 @@ function CanvasLoader({ status }: { status?: LoadingStatusType | "fetching" }) {
         "bg-blue-500/90 text-white",
 
         status === "generating" &&
+        "bg-purple-500/90 text-white",
+
+        status === "finalizing" &&
         "bg-purple-500/90 text-white"
       )}
     >

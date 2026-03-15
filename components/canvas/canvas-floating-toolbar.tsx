@@ -117,14 +117,38 @@ import { parseThemeColors } from "../../lib/themes";
 import { cn } from "../../lib/utils";
 import ThemeSelector from "./theme-selector";
 import { Separator } from "../ui/separator";
+import { useGenerateDesignById, useUpdateProject } from "../../features/use-project-id";
+import { Spinner } from "../ui/spinner";
 
-const CanvasFloatingToolbar = () => {
+const CanvasFloatingToolbar = ({
+  projectId,
+  isScreenshotting,
+  onScreenshot,
+}: {
+  projectId: string;
+  isScreenshotting: boolean;
+  onScreenshot: () => void;
+}) => {
   const { themes, theme: currentTheme, setTheme } = useCanvas();
   const [promptText, setPromptText] = useState<string>("");
   const visibleThemes = themes
-  ?.filter((t) => t.id === currentTheme?.id)
-  ?.concat(themes?.filter((t) => t.id !== currentTheme?.id))
-  ?.slice(0, 4);
+    ?.filter((t) => t.id === currentTheme?.id)
+    ?.concat(themes?.filter((t) => t.id !== currentTheme?.id))
+    ?.slice(0, 4);
+
+  const { mutate, isPending } = useGenerateDesignById(projectId);
+
+  const update = useUpdateProject(projectId);
+
+  const handleAIGenerate = () => {
+    if (!promptText) return;
+    mutate(promptText);
+  };
+
+  const handleUpdate = () => {
+    if (!currentTheme) return;
+    update.mutate(currentTheme.id);
+  }
 
   return (
     <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4">
@@ -141,7 +165,7 @@ const CanvasFloatingToolbar = () => {
                 size="icon-sm"
                 className="h-9 w-9 rounded-xl bg-gradient-to-r from-purple-500 via-indigo-500 to-blue-500 text-white shadow-md hover:scale-110 hover:shadow-lg transition-all duration-300"
               >
-                <Wand2 className="size-4"/>
+                <Wand2 className="size-4" />
               </Button>
             </PopoverTrigger>
 
@@ -155,9 +179,11 @@ const CanvasFloatingToolbar = () => {
               />
 
               <Button
+                disabled={isPending}
                 className="mt-3 w-full rounded-lg bg-gradient-to-r from-purple-500 to-indigo-600 text-white hover:scale-[1.02] hover:shadow-md transition-all"
+                onClick={handleAIGenerate}
               >
-                Generate UI
+                {isPending ? <Spinner /> : <>Generate UI</>}
               </Button>
 
             </PopoverContent>
@@ -169,7 +195,7 @@ const CanvasFloatingToolbar = () => {
 
               <div className="flex items-center gap-3 px-3 py-1.5 rounded-xl hover:bg-muted/50 transition-all duration-200 cursor-pointer">
 
-                <Palette className="size-4 text-muted-foreground"/>
+                <Palette className="size-4 text-muted-foreground" />
 
                 <div className="flex gap-2">
 
@@ -201,7 +227,7 @@ const CanvasFloatingToolbar = () => {
 
                   +{themes?.length - 4} Explore
 
-                  <ChevronDown className="size-4 transition-transform duration-200 group-hover:rotate-180"/>
+                  <ChevronDown className="size-4 transition-transform duration-200 group-hover:rotate-180" />
 
                 </div>
 
@@ -216,7 +242,7 @@ const CanvasFloatingToolbar = () => {
           </Popover>
 
           {/* Divider */}
-          <Separator orientation="vertical" className="h-6 opacity-60"/>
+          <Separator orientation="vertical" className="h-6 opacity-60" />
 
           {/* Right Buttons */}
           <div className="flex items-center gap-2">
@@ -225,17 +251,29 @@ const CanvasFloatingToolbar = () => {
               variant="outline"
               size="icon-sm"
               className="h-9 w-9 rounded-xl hover:bg-muted hover:scale-105 transition-all duration-200"
+              disabled={isScreenshotting}
+              onClick={onScreenshot}
             >
-              <CameraIcon className="size-4"/>
+              {isScreenshotting ? (
+                <Spinner />
+              ) : (
+              <CameraIcon className="size-4" />
+              )}
             </Button>
 
             <Button
               variant="default"
               size="sm"
               className="rounded-xl px-4 hover:scale-105 hover:shadow-md transition-all duration-200"
+              onClick={handleUpdate}
             >
-              <Save className="size-4"/>
-              Save
+              {update.isPending ? (<Spinner />
+              ) : (
+                <>
+                  <Save className="size-4" />
+                  Save
+                </>
+              )}
             </Button>
 
           </div>

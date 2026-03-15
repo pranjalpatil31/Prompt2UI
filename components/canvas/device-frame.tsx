@@ -1,12 +1,16 @@
 "use client"
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { TOOL_MODE_ENUM, type ToolModeType } from '../../constant/canvas';
 import { useCanvas } from '../../context/canvas-context';
 import { getHTMLWrapper } from '../../lib/frame-wrapper';
 import { Rnd } from 'react-rnd'
 import { cn } from '../../lib/utils';
+import axios from "axios";
 
 import DeviceFrameToolbar from './device-frame-toolbar';
+import { toast } from 'sonner';
+import { boolean } from 'zod';
+import DeviceFrameSkeleton from './device-frame-skeleton';
 type PropsType = {
     html: string;
     title?: string;
@@ -17,6 +21,7 @@ type PropsType = {
     scale?: number;
     toolMode: ToolModeType;
     theme_style?: string;
+    isLoading?: boolean;
     onOpenHtmlDialog: () => void;
 };
 const DeviceFrame = ({
@@ -29,6 +34,7 @@ const DeviceFrame = ({
     scale = 1,
     toolMode,
     theme_style,
+    isLoading= false,
     onOpenHtmlDialog,
 }: PropsType) => {
     const { selectedFrameId, setSelectedFrameId } = useCanvas();
@@ -36,6 +42,7 @@ const DeviceFrame = ({
         width,
         height: minHeight,
     });
+    const [isDownloading, setIsDownloading ] = useState(false);
     const iframeRef = useRef<HTMLIFrameElement>(null);
     const isSelected = selectedFrameId === frameId;
     const fullHtml = getHTMLWrapper(
@@ -57,6 +64,33 @@ const DeviceFrame = ({
         window.addEventListener("message", handleMessage);
         return () => window.removeEventListener("message", handleMessage);
     }, [frameId]);
+
+    const handleDownloadPng = useCallback(async () => {
+        if (isDownloading) return;
+        setIsDownloading(true);
+        try {
+            const response = await axios.post("/api/screenshot", {
+                html: fullHtml,
+                width: frameSize.width,
+                height: frameSize.height,
+            },{
+                responseType: "blob",
+                validateStatus:(s) => (s >= 200 && s < 300) || s ===304,
+            });
+            const url = window.URL.createObjectURL(response.data);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = `${title.replace(/\s+/g, "-").toLowerCase()}-${Date.now()}.png`;
+            link.click();
+            window.URL.revokeObjectURL(url);
+            toast.success("IMAGE Downlaoded");
+        } catch (error) { 
+            console.error(error);
+            toast.error("Failed To Capture Image");
+         } finally {
+            setIsDownloading(false);
+         }
+    }, [frameSize.height, frameSize.width, fullHtml, isDownloading, title]);
     return (
         <Rnd
             default={{
@@ -104,12 +138,21 @@ const DeviceFrame = ({
                 <DeviceFrameToolbar 
                     title={title}
                     isSelected={isSelected && toolMode !== TOOL_MODE_ENUM.HAND}
-                    disabled={false}
-                    isDownloading={false}
-                    onDownloading={() => {}}
+                    disabled={isDownloading || isLoading}
+                    isDownloading={isDownloading}
+                    onDownloading={handleDownloadPng}
                     onOpenHtmlDialog={onOpenHtmlDialog}
                 />
                 <div className={cn(`relative w-full h-auto shadow-sm rounded-[36px] overflow-hidden`, isSelected && toolMode !== TOOL_MODE_ENUM.HAND && "rounded-none")}>
+                    {isLoading ? (
+                        <DeviceFrameSkeleton 
+                            style={{
+                                position: "relative",
+                                width,
+                                height: minHeight
+                            }}
+                        />
+                    ) : (
                     <iframe 
                         ref={iframeRef}
                         srcDoc={fullHtml}
@@ -125,6 +168,7 @@ const DeviceFrame = ({
                             background: "white"
                         }}
                     />
+                    )}
                 </div>
             </div>
         </Rnd>
