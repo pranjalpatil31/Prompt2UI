@@ -150,3 +150,12 @@ const Header = () => {
 };
 
 export default Header;
+
+//  kindeauth
+//  mongodb
+//  react
+//  nextjs
+//  openrouter thme eneartor twecan , ai sdk 
+//  inngest
+//  unsplash image api 
+// vercel-ai gateway key
