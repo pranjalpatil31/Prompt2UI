@@ -75,7 +75,7 @@ Built with modern web technologies to provide a clean and responsive user experi
 
 Prompt2UI follows a modular architecture connecting the frontend, backend, AI services, database, authentication, image services, and background processing.
 
-prompt2ui.png
+![Prompt2UI System Architecture](./prompt2ui.png)
 
 ### Architecture Components
 
@@ -309,26 +309,10 @@ Prompt2UI can be useful for:
 * Makes UI prototyping more accessible to non-designers
 * Provides reusable and exportable interface designs
 
----
-
-## 🔮 Future Enhancements
-
-Potential future improvements include:
-
-* Multi-screen application generation
-* Improved AI-generated component structures
-* Code generation from generated UI designs
-* Figma export
-* React Native / Flutter code generation
-* More advanced layout customization
-* Version history for generated designs
-* Multi-language prompt support
-* Collaborative real-time editing
-
-```
 ## 🎥 Project Demo
 
 [▶️ **Watch Prompt2UI Demo**](./Prompt2UI.mp4)
+
 ---
 
 ## 👨‍💻 Author
@@ -344,12 +328,5 @@ Artificial Intelligence & Data Science
 This project is licensed under the **MIT License**.
 
 ---
+* Collaborative real-time editing
 
-## ⭐ Acknowledgements
-
-* **Google Gemini** for AI-powered prompt processing
-* **OpenRouter** for AI model access
-* **Unsplash** for image integration
-* **Kinde** for authentication services
-* **Inngest** for background task processing
-* **Vercel** for deployment and hosting
